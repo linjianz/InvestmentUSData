@@ -1,0 +1,8 @@
+# urllib3 2.x 在 macOS 自带/LibreSSL 的 Python 上会触发 NotOpenSSLWarning，限制 1.x 可消除
+urllib3>=1.26.18,<2
+
+pandas>=2.0
+tiingo>=0.15
+requests>=2.28
+tqdm>=4.65
+yfinance>=0.2.0
