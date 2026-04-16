@@ -29,6 +29,26 @@ python download.py
 python -c "from download import download_ticker; download_ticker('SPY')"
 ```
 
+## 从仓库同步 CSV（本地）
+
+无需 Tiingo：从本仓库拉取已由 Actions 更新的 `tickers/` 下 CSV，并**平铺**到 **`${HOME}/us_data`**（各标的一个 `*.csv` 文件）。
+
+**手动下载（稀疏克隆，只拉 `tickers/` 下的 CSV，再平铺到 `us_data`）：**
+
+```bash
+US_DATA="${HOME}/us_data"
+REPO="https://github.com/linjianz/InvestmentUSData.git"
+BRANCH="${BRANCH:-main}"
+WORKDIR="$(mktemp -d)"
+git clone --depth=1 --filter=blob:none --sparse -b "$BRANCH" "$REPO" "$WORKDIR/repo"
+git -C "$WORKDIR/repo" sparse-checkout set tickers
+mkdir -p "$US_DATA"
+rsync -a --delete "$WORKDIR/repo/tickers/" "$US_DATA/"
+rm -rf "$WORKDIR"
+```
+
+需要本机已安装 **git** 与 **rsync**。若使用 fork，将 `REPO` 改为你的仓库地址即可。
+
 ### 配置方式（二选一）
 
 | 场景 | 做法 |
