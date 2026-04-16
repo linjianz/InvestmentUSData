@@ -9,8 +9,9 @@ concurrency:
 
 on:
   schedule:
-    # 周一至五 00:01 UTC（北京时间约 08:01，夏令时约 07:01）
-    - cron: '1 0 * * 1-5'
+    - cron: '0 0 * * 1-5'  # 周一～周五，00:00 UTC -> 北京时间 08:00 -> GitHub 执行大概 10:30
+    - cron: '0 16 * * 0'  # 周日，16:00 UTC -> 北京时间 00:00 -> GitHub 执行大概 02:30
+    - cron: '0 16 * * 1-4'  # 周一～周四
   workflow_dispatch:
 
 jobs:
