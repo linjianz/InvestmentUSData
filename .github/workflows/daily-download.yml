@@ -41,6 +41,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tickers/
+          if [ -d tickers_A股ETF ]; then git add tickers_A股ETF/; fi
           if git diff --staged --quiet; then
             echo "No data changes, skip commit"
           else

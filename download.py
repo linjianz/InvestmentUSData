@@ -3,6 +3,7 @@
 支持增量下载，自动切换 API Key
 """
 import os
+import shutil
 import sys
 import pandas as pd
 from datetime import date
@@ -41,6 +42,8 @@ TIINGO_CONFIG = _load_tiingo_config()
 
 
 DATA_DIR = os.path.join(PROJECT_DIR, 'tickers')
+A_SHARE_ETF_DIR = os.path.join(PROJECT_DIR, 'tickers_A股ETF')
+A_SHARE_ETF_MARKET = 'A股ETF'
 TICKER_CSV_PATH = os.path.join(PROJECT_DIR, 'ticker.csv')
 
 _current_config_index = 0
@@ -83,6 +86,15 @@ def _check_if_update_needed(last_date: pd.Timestamp, end_date: str) -> tuple:
         return False, ''
 
     return True, new_start_date
+
+
+def _data_dir_for_market(market) -> str:
+    """A股ETF 输出到 tickers_A股ETF，其余与历史行为一致为 tickers。"""
+    if pd.isna(market):
+        return DATA_DIR
+    if str(market).strip() == A_SHARE_ETF_MARKET:
+        return A_SHARE_ETF_DIR
+    return DATA_DIR
 
 
 def _handle_incremental_download(ticker: str, file_path: str, start_date: str,
@@ -153,6 +165,7 @@ def download_ticker(ticker: str = '', exclude_markets: Optional[List[str]] = Non
 
     if not ticker:
         ticker_name_map = dict(zip(ticker_info_df['ticker'], ticker_info_df['name']))
+        ticker_market_map = dict(zip(ticker_info_df['ticker'], ticker_info_df['market']))
 
         status_map = {
             'first_download': '首次下载',
@@ -167,7 +180,7 @@ def download_ticker(ticker: str = '', exclude_markets: Optional[List[str]] = Non
         results = []
         pbar = tqdm(valid_tickers, desc='下载进度', unit='ticker')
         for t in pbar:
-            result = _download_single_ticker(t)
+            result = _download_single_ticker(t, ticker_market_map.get(t))
             result['ticker'] = t
             result['name'] = ticker_name_map.get(t, t)
             results.append(result)
@@ -182,7 +195,8 @@ def download_ticker(ticker: str = '', exclude_markets: Optional[List[str]] = Non
     if ticker not in valid_tickers:
         raise ValueError(f'ticker "{ticker}" 不在 ticker.csv 中（或被 exclude_markets 过滤）。有效的 ticker 列表: {valid_tickers}')
 
-    result = _download_single_ticker(ticker)
+    row = ticker_info_df[ticker_info_df['ticker'] == ticker].iloc[0]
+    result = _download_single_ticker(ticker, row['market'])
     if result.get('status') == 'failed':
         print(f"下载 {ticker} 失败: {result.get('error', '未知错误')}")
 
@@ -261,11 +275,15 @@ def _print_summary(results: list):
     print('=' * 30)
 
 
-def _download_single_ticker(ticker: str) -> dict:
-    os.makedirs(DATA_DIR, exist_ok=True)
+def _download_single_ticker(ticker: str, market=None) -> dict:
+    data_dir = _data_dir_for_market(market)
+    os.makedirs(data_dir, exist_ok=True)
     start_date = START_DATE
     end_date = date.today().strftime('%Y-%m-%d')
-    file_path = os.path.join(DATA_DIR, f'{ticker}.csv')
+    file_path = os.path.join(data_dir, f'{ticker}.csv')
+    legacy_path = os.path.join(DATA_DIR, f'{ticker}.csv')
+    if data_dir != DATA_DIR and not os.path.exists(file_path) and os.path.exists(legacy_path):
+        shutil.move(legacy_path, file_path)
     date_format = '%Y-%m-%d %H:%M:%S'
 
     try:
