@@ -1,11 +1,11 @@
 # InvestmentUSData
 
-从 [Tiingo](https://www.tiingo.com/) 拉取美股日线数据，支持增量更新与多 API Key 轮换；可通过 **GitHub Actions** 定时跑任务并把 `tickers/` 里的 CSV 自动提交回仓库。
+从 [Tiingo](https://www.tiingo.com/) 拉取美股日线数据，支持增量更新与多 API Key 轮换；可通过 **GitHub Actions** 定时跑任务并把 `tickers/`、`tickers_A股ETF/` 里的 CSV 自动提交回仓库。
 
 ## 功能概览
 
 - **标的列表**：根目录 `ticker.csv`（列：`ticker`, `market`, `name`）
-- **输出**：每个标的一个文件 `tickers/<代码>.csv`（Tiingo 日频字段：`date`, `close`, `high`, `low`, `open`, `volume`, 复权与分红拆分相关列等）
+- **输出**：每个标的一个 CSV；`market` 为 **`A股ETF`** 时写入 **`tickers_A股ETF/<代码>.csv`**，其余写入 **`tickers/<代码>.csv`**（Tiingo 日频字段：`date`, `close`, `high`, `low`, `open`, `volume`，以及复权与分红拆分等相关列）。若某 A 股 ETF 曾保存在 `tickers/` 下，下次下载时会自动迁移到 `tickers_A股ETF/`。
 - **增量**：已有 CSV 时只请求缺失区间，减少 API 调用
 - **限流**：环境变量 `TIINGO_API_KEYS` 支持逗号分隔多个 Key，遇限流自动切换
 - **VIX**：代码中对 `VIX` 有特殊处理（Yahoo / FRED）；当前默认列表以股票 ETF 为主，可按需在 `ticker.csv` 中加入
@@ -31,9 +31,9 @@ python -c "from download import download_ticker; download_ticker('SPY')"
 
 ## 从仓库同步 CSV（本地）
 
-无需 Tiingo：从本仓库拉取已由 Actions 更新的 `tickers/` 下 CSV，并**平铺**到 **`${HOME}/us_data`**（各标的一个 `*.csv` 文件）。
+无需 Tiingo：从本仓库拉取已由 Actions 更新的 **`tickers/`** 与 **`tickers_A股ETF/`** 下 CSV，并**平铺**到 **`${HOME}/us_data`**（各标的一个 `*.csv` 文件）。
 
-**手动下载（稀疏克隆，只拉 `tickers/` 下的 CSV，再平铺到 `us_data`）：**
+**手动下载（稀疏克隆，只拉上述两个目录，再平铺到 `us_data`）：**
 
 ```bash
 US_DATA="${HOME}/us_data"
@@ -41,11 +41,16 @@ REPO="https://github.com/linjianz/InvestmentUSData.git"
 BRANCH="${BRANCH:-main}"
 WORKDIR="$(mktemp -d)"
 git clone --depth=1 --filter=blob:none --sparse -b "$BRANCH" "$REPO" "$WORKDIR/repo"
-git -C "$WORKDIR/repo" sparse-checkout set tickers
+git -C "$WORKDIR/repo" sparse-checkout set tickers tickers_A股ETF
 mkdir -p "$US_DATA"
 rsync -a --delete "$WORKDIR/repo/tickers/" "$US_DATA/"
+if [ -d "$WORKDIR/repo/tickers_A股ETF" ]; then
+  rsync -a "$WORKDIR/repo/tickers_A股ETF/" "$US_DATA/"
+fi
 rm -rf "$WORKDIR"
 ```
+
+若当前分支在远程尚不存在 `tickers_A股ETF` 目录，`sparse-checkout set` 可能报错，可先只检出 `tickers`，并去掉脚本里针对 `tickers_A股ETF` 的 `rsync` 分支。
 
 需要本机已安装 **git** 与 **rsync**。若使用 fork，将 `REPO` 改为你的仓库地址即可。
 
@@ -64,7 +69,7 @@ rm -rf "$WORKDIR"
 2. 打开 **Settings → Secrets and variables → Actions**，新建 Secret：
    - 名称：`TIINGO_API_KEYS`
    - 值：一个或多个 Tiingo Key，多个时用英文逗号连接（与本地 `TIINGO_API_KEYS` 行为一致）。
-3. 赋予 Actions 写仓库权限：**Settings → Actions → General → Workflow permissions**，勾选 **Read and write permissions**（否则无法 `git push` 更新 `tickers/`）。
+3. 赋予 Actions 写仓库权限：**Settings → Actions → General → Workflow permissions**，勾选 **Read and write permissions**（否则无法 `git push` 更新 `tickers/`、`tickers_A股ETF/`）。
 
 触发方式：
 
@@ -79,7 +84,8 @@ rm -rf "$WORKDIR"
 .
 ├── download.py           # 下载与增量逻辑
 ├── ticker.csv            # 标的清单
-├── tickers/              # 各标的 CSV（可提交或由 CI 更新）
+├── tickers/              # 默认输出目录（非 A股ETF 标的）
+├── tickers_A股ETF/       # ticker.csv 中 market 为 A股ETF 的标的
 ├── config.example.py     # 本地配置模板（可安全提交）
 ├── config.py             # 本地密钥（勿提交，见 .gitignore）
 ├── requirements.txt
